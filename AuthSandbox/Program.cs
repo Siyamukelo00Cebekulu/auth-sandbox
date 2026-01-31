@@ -1,41 +1,53 @@
+using AuthSandbox;
+using Microsoft.IdentityModel.Tokens;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+builder.Services.AddSingleton<JwtService>();
+
+var jwtService = new JwtService();
+
+builder.Services.AddAuthentication("Bearer")
+    .AddJwtBearer("Bearer", options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = false,
+            ValidateAudience = false,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = jwtService.GetKey()
+        };
+    });
+
+builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+app.UseAuthentication();
+app.UseAuthorization();
+
+
+app.MapPost("/login", (LoginRequest request, JwtService jwt) =>
 {
-    app.MapOpenApi();
+    if (!Validate(request.Username, request.Password))
+        return Results.Unauthorized();
+
+    var token = jwt.GenerateToken(request.Username);
+    return Results.Ok(new { token });
+});
+
+bool Validate(string username, string password)
+{
+    return username == "admin" && password == "1234";
 }
 
-app.UseHttpsRedirection();
-
-var summaries = new[]
+app.MapGet("/secret", () =>
 {
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
+    return "You are authenticated!";
 })
-.WithName("GetWeatherForecast");
+.RequireAuthorization();
 
 app.Run();
 
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
+public record LoginRequest(string Username, string Password);
