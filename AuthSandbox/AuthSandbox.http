@@ -1,0 +1,6 @@
+@AuthSandbox_HostAddress = http://localhost:5147
+
+GET {{AuthSandbox_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
